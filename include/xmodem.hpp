@@ -1,19 +1,14 @@
 #pragma once
 #include "pico/stdlib.h"
+#include <stdarg.h>
 
-const size_t XMODEM_LOGSIZE = 65536;
+#ifndef XMODEM_LOGSIZE
+#define XMODEM_LOGSIZE 65536
+#endif
 
-const uint8_t XMODEM_SOH = 0x01;
-const uint8_t XMODEM_EOT = 0x04;
-const uint8_t XMODEM_ACK = 0x06;
-const uint8_t XMODEM_BS = 0x08;
-const uint8_t XMODEM_DLE = 0x10;
-const uint8_t XMODEM_NAK = 0x15;
-const uint8_t XMODEM_CAN = 0x18;
-const uint8_t XMODEM_SUB = 0x1a;
-const uint8_t XMODEM_CRC = 'C';
-
-const size_t XMODEM_BLOCKSIZE = 128;
+#ifndef XMODEM_BLOCKSIZE
+#define XMODEM_BLOCKSIZE 128
+#endif
 
 enum class XMode : uint8_t {
     Original = 0,
@@ -71,16 +66,17 @@ public:
 private:
 
     XConfig config;
-    char * log_buffer;
+    char log_buffer[XMODEM_LOGSIZE];
     size_t log_index = 0;
 
     void reset_log();
     void clear_log();
     void dump_log();
-    void log(char * message);
-    void log(XLogLevel level, char * message);
-    void logf(char * message, ...);
-    void logf(XLogLevel level, char * message, ...);
+    void log(const char * message);
+    void log(XLogLevel level, const char * message);
+    void logf(const char * message, ...);
+    void logf(XLogLevel level, const char * message, ...);
+    void _logf(XLogLevel level, const char * message, va_list args);
     bool is_log_level(XLogLevel level);
 
     bool send_packet(uint8_t * buffer, size_t size, uint block);

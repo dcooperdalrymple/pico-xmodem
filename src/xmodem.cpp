@@ -7,11 +7,27 @@
 #include "pico/malloc.h"
 #include "pico/printf.h"
 
+const uint8_t XMODEM_SOH = 0x01;
+const uint8_t XMODEM_EOT = 0x04;
+const uint8_t XMODEM_ACK = 0x06;
+const uint8_t XMODEM_BS = 0x08;
+const uint8_t XMODEM_DLE = 0x10;
+const uint8_t XMODEM_NAK = 0x15;
+const uint8_t XMODEM_CAN = 0x18;
+const uint8_t XMODEM_SUB = 0x1a;
+const uint8_t XMODEM_CRC = 'C';
+
 XMODEM::XMODEM() {
+    // Configure UART
     stdio_init_all();
 	stdio_set_translate_crlf(&stdio_usb, false); // Disable automatic carriage return
+
+    // Setup log buffer
+    memset(this->log_buffer, 0x00, XMODEM_LOGSIZE);
+    this->log_index = 0;
+
+    // Reset config
     bzero(&this->config, sizeof(this->config));
-    this->reset_log();
 };
 
 XMODEM::XMODEM(const XConfig config) {
@@ -25,9 +41,7 @@ XMODEM::XMODEM(XMode mode) {
     this->set_mode(mode);
 };
 
-XMODEM::~XMODEM() {
-    delete this->log_buffer;
-};
+XMODEM::~XMODEM() { };
 
 // Configuration
 
@@ -69,13 +83,6 @@ void XMODEM::print_config() {
 
 // Logging
 
-void XMODEM::reset_log() {
-    if (this->log_buffer != nullptr) delete this->log_buffer;
-    this->log_buffer = (char *)malloc(XMODEM_LOGSIZE * sizeof(char));
-    memset(this->log_buffer, 0x00, XMODEM_LOGSIZE);
-    this->log_index = 0;
-};
-
 void XMODEM::clear_log() {
     this->log_buffer[0] = 0;
     this->log_index = 0;
@@ -86,11 +93,11 @@ void XMODEM::dump_log() {
     puts(this->log_buffer);
 };
 
-void XMODEM::log(char * message) {
+void XMODEM::log(const char * message) {
     this->log(XLogLevel::Fatal, message);
 };
 
-void XMODEM::log(XLogLevel level, char * message) {
+void XMODEM::log(XLogLevel level, const char * message) {
     if (!this->is_log_level(level)) return;
 
     if (this->log_index + strlen(message) + 3 >= XMODEM_LOGSIZE) {
@@ -107,14 +114,21 @@ void XMODEM::log(XLogLevel level, char * message) {
     this->log_buffer[this->log_index] = 0;
 };
 
-void XMODEM::logf(char * message, ...) {
+void XMODEM::logf(const char * message, ...) {
     va_list args;
     va_start(args, message);
-    this->logf(XLogLevel::Fatal, message, args);
+    this->_logf(XLogLevel::Fatal, message, args);
     va_end(args);
 };
 
-void XMODEM::logf(XLogLevel level, char * message, ...) {
+void XMODEM::logf(XLogLevel level, const char * message, ...) {
+    va_list args;
+    va_start(args, message);
+    this->_logf(level, message, args);
+    va_end(args);
+};
+
+void XMODEM::_logf(XLogLevel level, const char * message, va_list args) {
     if (!this->is_log_level(level)) return;
 
     // BUG: Calculating strlen before formatting message
@@ -124,10 +138,7 @@ void XMODEM::logf(XLogLevel level, char * message, ...) {
     }
 
     int result;
-    va_list args;
-    va_start(args, message);
-    result = snprintf(this->log_buffer + this->log_index, XMODEM_LOGSIZE - this->log_index - 3, message, args);
-    va_end(args);
+    result = vsnprintf(this->log_buffer + this->log_index, XMODEM_LOGSIZE - this->log_index - 3, message, args);
     if (result <= 0) return;
 
     while (this->log_buffer[this->log_index] != 0) {
@@ -138,7 +149,7 @@ void XMODEM::logf(XLogLevel level, char * message, ...) {
     this->log_buffer[this->log_index++] = '\r';
     this->log_buffer[this->log_index++] = '\n';
     this->log_buffer[this->log_index] = 0;
-}
+};
 
 bool XMODEM::is_log_level(XLogLevel level) {
     return level <= this->config.log_level;
