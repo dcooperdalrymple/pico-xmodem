@@ -163,7 +163,7 @@ bool XMODEM::send(uint8_t * buffer, size_t size) {
 bool XMODEM::send(uint8_t * buffer, size_t size, uint wait_timeout, uint read_timeout) {
     bool use_crc = false;
     bool result = true;
-    char c;
+    int c;
     uint i;
 
     // Indicate start of transmission and determine CRC mode
@@ -210,22 +210,23 @@ bool XMODEM::send(uint8_t * buffer, size_t size, uint wait_timeout, uint read_ti
     // Indicate end of file
     if (result) {
         i = 0;
-        while (true) {
-            putchar(XMODEM_EOT);
+        putchar(XMODEM_EOT);
+        do {
             c = getchar_timeout_us(read_timeout);
-            if (c == XMODEM_ACK) {
-                break;
-            } else if (c == XMODEM_NAK) {
-                continue;
-            } else if (c == XMODEM_CAN && getchar_timeout_us(read_timeout) == XMODEM_CAN) {
-                result = false;
-                break;
+            if (c != PICO_ERROR_TIMEOUT) {
+                if (c == XMODEM_ACK) {
+                    break;
+                } else if (c == XMODEM_CAN && getchar_timeout_us(read_timeout) == XMODEM_CAN) {
+                    result = false;
+                    break;
+                } else { // c == XMODEM_NAK
+                    putchar (XMODEM_EOT);
+                }
             }
-            if (++i > 10) {
-                if (i >= 9) this->log(XLogLevel::Error, "EOT Timeout");
-                result = false;
-                break;
-            }
+        } while (++i < 2000);
+        if (i >= 2000) {
+            this->log(XLogLevel::Error, "EOT Timeout");
+            result = false;
         }
     }
 
@@ -268,7 +269,7 @@ bool XMODEM::send_packet(uint8_t * buffer, size_t size, uint block, bool use_crc
         memset(packet + len, XMODEM_SUB, XMODEM_BLOCKSIZE - len);
     }
     
-    char c;
+    int c;
     uint16_t checksum;
     size_t i;
     bool result = false;
@@ -325,7 +326,7 @@ size_t XMODEM::receive(uint8_t * buffer, size_t size) {
 size_t XMODEM::receive(uint8_t * buffer, size_t size, uint wait_timeout, uint read_timeout) {
     uint block = 0;
     bool error = false;
-    char c;
+    int c;
 
     // Transmission loop
     while (true) {
@@ -353,14 +354,14 @@ size_t XMODEM::receive(uint8_t * buffer, size_t size, uint wait_timeout, uint re
             error = true;
             break;
         } else if (c != XMODEM_SOH) {
-            this->logf(XLogLevel::Info, "Unexpectd character %02X received, expected SOH or EOT", c);
+            this->logf(XLogLevel::Info, "Unexpected character %02X received, expected SOH or EOT", c);
             continue;
         }
 
         this->logf(XLogLevel::Debug, "Got SOH for packet %d", block+1);
 
         if ((block+1) * XMODEM_BLOCKSIZE > size) {
-            this->log(XLogLevel::Info, "Transmission exceeds maximum size");
+            this->log(XLogLevel::Debug, "Transmission exceeds maximum size");
             this->abort();
             error = true;
             break;
@@ -389,21 +390,22 @@ bool XMODEM::receive_packet(uint8_t * buffer, size_t size, uint block, uint read
     size_t i;
 
     // Get packet header (block index)
+    int c;
     char * header = (char *)malloc(2 * sizeof(char));
     for (i = 0; i < 2; i++) {
-        header[i] = getchar_timeout_us(i == 0 ? wait_timeout : read_timeout);
-        if (header[i] == PICO_ERROR_TIMEOUT) {
+        c = getchar_timeout_us(i == 0 ? wait_timeout : read_timeout);
+        if (c == PICO_ERROR_TIMEOUT) {
             putchar(XMODEM_NAK);
             delete header;
             return false;
         }
+        header[i] = (char)c;
     }
 
     // Receive packet and calculate checksum
     bool result = true;
     uint16_t checksum = 0;
     bool escape = false;
-    char c;
     char * packet = (char *)malloc(XMODEM_BLOCKSIZE * sizeof(char));
     i = 0;
     while (i < XMODEM_BLOCKSIZE) {
@@ -422,7 +424,7 @@ bool XMODEM::receive_packet(uint8_t * buffer, size_t size, uint block, uint read
             escape = false;
         }
 
-        packet[i++] = c;
+        packet[i++] = (char)c;
         checksum = this->calculate_checksum(checksum, c);
     }
 
@@ -431,11 +433,12 @@ bool XMODEM::receive_packet(uint8_t * buffer, size_t size, uint block, uint read
     char * footer = (char *)malloc(footer_size * sizeof(char));
     if (result) {
         for (i = 0; i < footer_size; i++) {
-            footer[i] = getchar_timeout_us(read_timeout);
-            if (footer[i] == PICO_ERROR_TIMEOUT) {
+            c = getchar_timeout_us(read_timeout);
+            if (c == PICO_ERROR_TIMEOUT) {
                 result = false;
                 break;
             }
+            footer[i] = (char)c;
         }
     }
 
@@ -501,6 +504,7 @@ uint16_t XMODEM::calculate_checksum(uint16_t checksum, uint8_t value, bool use_c
         }
     } else {
         checksum += value;
+        checksum &= 0xff;
     }
     return checksum;
 };
