@@ -15,6 +15,8 @@ enum class XMode : uint8_t {
     CRC
 };
 
+#define XLOGLEVEL_COUNT 5
+
 enum class XLogLevel : uint8_t {
     Fatal = 0,
     Error,
@@ -23,7 +25,7 @@ enum class XLogLevel : uint8_t {
     Debug
 };
 
-static const char * XLogLevelNames[5] = {
+static const char * XLogLevelNames[XLOGLEVEL_COUNT] = {
     "Fatal",
     "Error",
     "Warning",
@@ -51,9 +53,15 @@ public:
     ~XMODEM();
 
     void set_config(const XConfig config);
+    XConfig get_config() const;
+    
     void set_mode(XMode mode);
+
     void set_log_level(XLogLevel level);
+    XLogLevel get_log_level() const;
+
     void set_escaping(bool use_escape);
+    bool get_escaping() const;
 
     void print_config();
 

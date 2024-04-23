@@ -49,6 +49,10 @@ void XMODEM::set_config(const XConfig config) {
     bcopy(&config, &this->config, sizeof(this->config));
 };
 
+XConfig XMODEM::get_config() const {
+    return this->config;
+};
+
 void XMODEM::set_mode(XMode mode) {
     switch (mode) {
         case XMode::CRC:
@@ -68,8 +72,16 @@ void XMODEM::set_log_level(XLogLevel level) {
     this->config.log_level = level;
 };
 
+XLogLevel XMODEM::get_log_level() const {
+    return this->config.log_level;
+};
+
 void XMODEM::set_escaping(bool use_escape) {
     this->config.use_escape = use_escape;
+};
+
+bool XMODEM::get_escaping() const {
+    return this->config.use_escape;
 };
 
 void XMODEM::print_config() {
