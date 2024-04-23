@@ -91,6 +91,7 @@ void XMODEM::print_config() {
     if (this->config.use_crc) printf("\tCRC Required: %s\r\n", this->config.require_crc ? "yes" : "no");
 	printf("\tEscaping: %s\r\n", this->config.use_escape ? "on" : "off");
 	printf("\tLog level: %s (%d)\r\n", this->config.get_log_level_name(), this->config.log_level);
+    printf("\r\n");
 };
 
 // Logging
